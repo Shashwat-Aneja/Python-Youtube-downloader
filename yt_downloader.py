@@ -1,26 +1,34 @@
 #!/usr/bin/env python3
-"""
-yt_downloader.py
-
-A clean, simple YouTube video downloader CLI tool.
-Uses pytube to fetch YouTube streams and download videos.
-
-Usage:
-    python yt_downloader.py <YouTube_URL>
-    python yt_downloader.py <YouTube_URL> --list
-"""
+"""Download a progressive MP4 stream from a YouTube video URL."""
 
 import argparse
-from pytube import YouTube
 import sys
 
 
-def list_streams(yt: YouTube):
+def select_stream(streams, index=None):
+    """Select from streams ordered highest-resolution first.
+
+    Indexes are one-based for CLI consistency. Without an index, choose the
+    first stream, which is the highest-resolution stream in the supplied list.
+    """
+    available = list(streams)
+    if not available:
+        raise ValueError("No progressive MP4 streams are available for this video.")
+    if index is None:
+        return available[0]
+    if not isinstance(index, int) or isinstance(index, bool) or index < 1:
+        raise ValueError("Stream index must be a positive integer.")
+    if index > len(available):
+        raise ValueError(f"Stream index {index} is out of range; choose 1 to {len(available)}.")
+    return available[index - 1]
+
+
+def list_streams(streams):
     print("\nAvailable Video Streams:")
-    streams = yt.streams.filter(progressive=True, file_extension="mp4").order_by("resolution").desc()
-    for i, stream in enumerate(streams, start=1):
-        print(f"{i}. {stream.resolution} — {stream.fps}fps — {round(stream.filesize / 1_000_000, 2)}MB")
-    return streams
+    for index, stream in enumerate(streams, start=1):
+        size = getattr(stream, "filesize", None)
+        size_label = f"{size / 1_000_000:.2f}MB" if size is not None else "size unknown"
+        print(f"{index}. {stream.resolution} — {stream.fps}fps — {size_label}")
 
 
 def download_stream(stream):
@@ -29,35 +37,42 @@ def download_stream(stream):
     print("\nDownload complete!")
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description="Simple YouTube video downloader using pytube")
     parser.add_argument("url", help="YouTube video URL")
     parser.add_argument("--list", action="store_true", help="List available resolutions")
-    parser.add_argument("--index", type=int, help="Choose resolution by index (when using --list first)")
-    args = parser.parse_args()
+    parser.add_argument("--index", type=int, help="Download a stream by its one-based listed index")
+    args = parser.parse_args(argv)
+
+    try:
+        from pytube import YouTube
+    except ImportError:
+        parser.exit(1, "Error: pytube is not installed. Install it with pip install pytube.\n")
 
     try:
         yt = YouTube(args.url)
-    except Exception as e:
-        print(f"Error: Invalid URL or connection issue.\n{e}")
-        sys.exit(1)
+        print(f"\nTitle: {yt.title}")
+        print(f"Author: {yt.author}")
+        streams = list(
+            yt.streams.filter(progressive=True, file_extension="mp4")
+            .order_by("resolution")
+            .desc()
+        )
+        if not streams:
+            parser.exit(1, "Error: no progressive MP4 streams are available for this video.\n")
 
-    print(f"\nTitle: {yt.title}")
-    print(f"Author: {yt.author}")
-
-    if args.list:
-        streams = list_streams(yt)
-        if args.index:
-            idx = args.index - 1
-            if idx < 0 or idx >= len(streams):
-                print("Error: Invalid index.")
-                sys.exit(1)
-            download_stream(streams[idx])
-        sys.exit(0)
-
-    # Default download: highest resolution progressive MP4
-    stream = yt.streams.filter(progressive=True, file_extension="mp4").order_by("resolution").last()
-    download_stream(stream)
+        if args.list or args.index is not None:
+            list_streams(streams)
+        if args.index is not None or not args.list:
+            try:
+                stream = select_stream(streams, args.index)
+            except ValueError as exc:
+                parser.exit(2, f"Error: {exc}\n")
+            download_stream(stream)
+    except SystemExit:
+        raise
+    except Exception as exc:
+        parser.exit(1, f"Error processing video: {exc}\n")
 
 
 if __name__ == "__main__":

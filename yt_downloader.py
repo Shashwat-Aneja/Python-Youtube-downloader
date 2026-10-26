@@ -3,6 +3,7 @@
 
 import argparse
 import sys
+from pathlib import Path
 
 
 def select_stream(streams, index=None):
@@ -31,9 +32,15 @@ def list_streams(streams):
         print(f"{index}. {stream.resolution} — {stream.fps}fps — {size_label}")
 
 
-def download_stream(stream):
+def download_stream(stream, output_dir=None):
+    """Download a selected stream, optionally creating a destination directory."""
     print(f"\nDownloading: {stream.default_filename}")
-    stream.download()
+    if output_dir is None:
+        stream.download()
+    else:
+        destination = Path(output_dir).expanduser()
+        destination.mkdir(parents=True, exist_ok=True)
+        stream.download(output_path=str(destination))
     print("\nDownload complete!")
 
 
@@ -42,6 +49,10 @@ def main(argv=None):
     parser.add_argument("url", help="YouTube video URL")
     parser.add_argument("--list", action="store_true", help="List available resolutions")
     parser.add_argument("--index", type=int, help="Download a stream by its one-based listed index")
+    parser.add_argument(
+        "--output-dir",
+        help="Directory where the video will be saved (created if it does not exist)",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -68,7 +79,7 @@ def main(argv=None):
                 stream = select_stream(streams, args.index)
             except ValueError as exc:
                 parser.exit(2, f"Error: {exc}\n")
-            download_stream(stream)
+            download_stream(stream, output_dir=args.output_dir)
     except SystemExit:
         raise
     except Exception as exc:

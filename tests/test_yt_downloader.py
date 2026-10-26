@@ -1,11 +1,16 @@
 import pytest
 
-from yt_downloader import select_stream
+from yt_downloader import download_stream, select_stream
 
 
 class FakeStream:
     def __init__(self, resolution):
         self.resolution = resolution
+        self.default_filename = "video.mp4"
+        self.download_calls = []
+
+    def download(self, **kwargs):
+        self.download_calls.append(kwargs)
 
 
 def test_default_selection_uses_first_highest_resolution_stream():
@@ -31,3 +36,21 @@ def test_out_of_range_and_empty_stream_lists_are_rejected():
         select_stream([FakeStream("720p")], 2)
     with pytest.raises(ValueError, match="No progressive MP4 streams"):
         select_stream([])
+
+
+def test_download_stream_creates_and_uses_requested_output_directory(tmp_path):
+    stream = FakeStream("720p")
+    destination = tmp_path / "nested" / "downloads"
+
+    download_stream(stream, output_dir=destination)
+
+    assert destination.is_dir()
+    assert stream.download_calls == [{"output_path": str(destination)}]
+
+
+def test_download_stream_preserves_pytube_default_when_no_directory_is_given():
+    stream = FakeStream("720p")
+
+    download_stream(stream)
+
+    assert stream.download_calls == [{}]

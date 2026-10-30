@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Download a progressive MP4 stream from a YouTube video URL."""
+"""Download progressive MP4 video or audio-only streams from a YouTube URL."""
 
 import argparse
 import sys
@@ -7,14 +7,14 @@ from pathlib import Path
 
 
 def select_stream(streams, index=None):
-    """Select from streams ordered highest-resolution first.
+    """Select from streams ordered highest-quality first.
 
     Indexes are one-based for CLI consistency. Without an index, choose the
-    first stream, which is the highest-resolution stream in the supplied list.
+    first stream, which is the highest-quality stream in the supplied list.
     """
     available = list(streams)
     if not available:
-        raise ValueError("No progressive MP4 streams are available for this video.")
+        raise ValueError("No matching streams are available for this video.")
     if index is None:
         return available[0]
     if not isinstance(index, int) or isinstance(index, bool) or index < 1:
@@ -24,12 +24,18 @@ def select_stream(streams, index=None):
     return available[index - 1]
 
 
-def list_streams(streams):
-    print("\nAvailable Video Streams:")
+def list_streams(streams, stream_type="Video"):
+    """Print available stream quality, frame rate when present, and size."""
+    print(f"\nAvailable {stream_type} Streams:")
     for index, stream in enumerate(streams, start=1):
+        quality = getattr(stream, "resolution", None) or getattr(stream, "abr", None) or "quality unknown"
+        fps = getattr(stream, "fps", None)
         size = getattr(stream, "filesize", None)
-        size_label = f"{size / 1_000_000:.2f}MB" if size is not None else "size unknown"
-        print(f"{index}. {stream.resolution} — {stream.fps}fps — {size_label}")
+        details = [str(quality)]
+        if fps is not None:
+            details.append(f"{fps}fps")
+        details.append(f"{size / 1_000_000:.2f}MB" if size is not None else "size unknown")
+        print(f"{index}. {' - '.join(details)}")
 
 
 def download_stream(stream, output_dir=None):
@@ -45,13 +51,18 @@ def download_stream(stream, output_dir=None):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Simple YouTube video downloader using pytube")
+    parser = argparse.ArgumentParser(description="Download YouTube video or audio streams using pytube")
     parser.add_argument("url", help="YouTube video URL")
-    parser.add_argument("--list", action="store_true", help="List available resolutions")
+    parser.add_argument("--list", action="store_true", help="List available stream qualities")
     parser.add_argument("--index", type=int, help="Download a stream by its one-based listed index")
     parser.add_argument(
         "--output-dir",
-        help="Directory where the video will be saved (created if it does not exist)",
+        help="Directory where the download will be saved (created if it does not exist)",
+    )
+    parser.add_argument(
+        "--audio-only",
+        action="store_true",
+        help="Select audio-only streams ordered by audio bitrate instead of progressive MP4 video",
     )
     args = parser.parse_args(argv)
 
@@ -64,16 +75,26 @@ def main(argv=None):
         yt = YouTube(args.url)
         print(f"\nTitle: {yt.title}")
         print(f"Author: {yt.author}")
-        streams = list(
-            yt.streams.filter(progressive=True, file_extension="mp4")
-            .order_by("resolution")
-            .desc()
-        )
+        if args.audio_only:
+            streams = list(
+                yt.streams.filter(only_audio=True)
+                .order_by("abr")
+                .desc()
+            )
+            stream_type = "Audio"
+        else:
+            streams = list(
+                yt.streams.filter(progressive=True, file_extension="mp4")
+                .order_by("resolution")
+                .desc()
+            )
+            stream_type = "Video"
+
         if not streams:
-            parser.exit(1, "Error: no progressive MP4 streams are available for this video.\n")
+            parser.exit(1, f"Error: no matching {stream_type.lower()} streams are available for this video.\n")
 
         if args.list or args.index is not None:
-            list_streams(streams)
+            list_streams(streams, stream_type=stream_type)
         if args.index is not None or not args.list:
             try:
                 stream = select_stream(streams, args.index)

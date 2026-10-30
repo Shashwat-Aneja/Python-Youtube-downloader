@@ -2,6 +2,7 @@
 """Download progressive MP4 video or audio-only streams from a YouTube URL."""
 
 import argparse
+import re
 import sys
 from pathlib import Path
 
@@ -22,6 +23,17 @@ def select_stream(streams, index=None):
     if index > len(available):
         raise ValueError(f"Stream index {index} is out of range; choose 1 to {len(available)}.")
     return available[index - 1]
+
+
+def audio_bitrate_kbps(stream):
+    """Extract the numeric bitrate from pytube values such as '160kbps'."""
+    match = re.search(r"\d+(?:\.\d+)?", str(getattr(stream, "abr", "")))
+    return float(match.group(0)) if match else -1.0
+
+
+def sort_audio_streams(streams):
+    """Order audio streams by numeric bitrate, not lexicographic text order."""
+    return sorted(streams, key=audio_bitrate_kbps, reverse=True)
 
 
 def list_streams(streams, stream_type="Video"):
@@ -62,7 +74,7 @@ def main(argv=None):
     parser.add_argument(
         "--audio-only",
         action="store_true",
-        help="Select audio-only streams ordered by audio bitrate instead of progressive MP4 video",
+        help="Select audio-only streams ordered by numeric audio bitrate instead of progressive MP4 video",
     )
     args = parser.parse_args(argv)
 
@@ -76,11 +88,7 @@ def main(argv=None):
         print(f"\nTitle: {yt.title}")
         print(f"Author: {yt.author}")
         if args.audio_only:
-            streams = list(
-                yt.streams.filter(only_audio=True)
-                .order_by("abr")
-                .desc()
-            )
+            streams = sort_audio_streams(yt.streams.filter(only_audio=True))
             stream_type = "Audio"
         else:
             streams = list(

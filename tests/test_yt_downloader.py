@@ -1,12 +1,26 @@
+import sys
+from types import SimpleNamespace
+
 import pytest
 
-from yt_downloader import download_stream, select_stream
+from yt_downloader import download_stream, main, select_stream
 
 
 class FakeStream:
     def __init__(self, resolution):
         self.resolution = resolution
         self.default_filename = "video.mp4"
+        self.download_calls = []
+
+    def download(self, **kwargs):
+        self.download_calls.append(kwargs)
+
+
+class FakeAudioStream:
+    def __init__(self, abr):
+        self.abr = abr
+        self.default_filename = "audio.webm"
+        self.filesize = 2_000_000
         self.download_calls = []
 
     def download(self, **kwargs):
@@ -34,7 +48,7 @@ def test_invalid_stream_indices_are_rejected(index):
 def test_out_of_range_and_empty_stream_lists_are_rejected():
     with pytest.raises(ValueError, match="out of range"):
         select_stream([FakeStream("720p")], 2)
-    with pytest.raises(ValueError, match="No progressive MP4 streams"):
+    with pytest.raises(ValueError, match="No matching streams"):
         select_stream([])
 
 
@@ -54,3 +68,36 @@ def test_download_stream_preserves_pytube_default_when_no_directory_is_given():
     download_stream(stream)
 
     assert stream.download_calls == [{}]
+
+
+def test_audio_only_cli_selects_by_bitrate_without_video_filters(monkeypatch, capsys):
+    streams = [FakeAudioStream("160kbps"), FakeAudioStream("128kbps")]
+
+    class FakeStreamQuery:
+        def filter(self, **kwargs):
+            assert kwargs == {"only_audio": True}
+            return self
+
+        def order_by(self, field):
+            assert field == "abr"
+            return self
+
+        def desc(self):
+            return streams
+
+    class FakeYouTube:
+        def __init__(self, _url):
+            self.title = "Test video"
+            self.author = "Test author"
+            self.streams = FakeStreamQuery()
+
+    monkeypatch.setitem(sys.modules, "pytube", SimpleNamespace(YouTube=FakeYouTube))
+    downloads = []
+    monkeypatch.setattr("yt_downloader.download_stream", lambda stream, output_dir=None: downloads.append(stream))
+
+    main(["https://example.test/video", "--audio-only", "--index", "2"])
+
+    assert downloads == [streams[1]]
+    output = capsys.readouterr().out
+    assert "Available Audio Streams:" in output
+    assert "160kbps" in output

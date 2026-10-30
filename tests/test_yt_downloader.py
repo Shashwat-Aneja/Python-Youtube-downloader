@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from yt_downloader import download_stream, main, select_stream
+from yt_downloader import download_stream, main, select_stream, sort_audio_streams
 
 
 class FakeStream:
@@ -70,19 +70,28 @@ def test_download_stream_preserves_pytube_default_when_no_directory_is_given():
     assert stream.download_calls == [{}]
 
 
-def test_audio_only_cli_selects_by_bitrate_without_video_filters(monkeypatch, capsys):
-    streams = [FakeAudioStream("160kbps"), FakeAudioStream("128kbps")]
+def test_audio_streams_are_sorted_by_numeric_bitrate():
+    streams = [
+        FakeAudioStream("96kbps"),
+        FakeAudioStream("160kbps"),
+        FakeAudioStream("128kbps"),
+    ]
+
+    ordered = sort_audio_streams(streams)
+
+    assert [stream.abr for stream in ordered] == ["160kbps", "128kbps", "96kbps"]
+
+
+def test_audio_only_cli_selects_by_numeric_bitrate_without_video_filters(monkeypatch, capsys):
+    streams = [
+        FakeAudioStream("96kbps"),
+        FakeAudioStream("160kbps"),
+        FakeAudioStream("128kbps"),
+    ]
 
     class FakeStreamQuery:
         def filter(self, **kwargs):
             assert kwargs == {"only_audio": True}
-            return self
-
-        def order_by(self, field):
-            assert field == "abr"
-            return self
-
-        def desc(self):
             return streams
 
     class FakeYouTube:
@@ -97,7 +106,7 @@ def test_audio_only_cli_selects_by_bitrate_without_video_filters(monkeypatch, ca
 
     main(["https://example.test/video", "--audio-only", "--index", "2"])
 
-    assert downloads == [streams[1]]
+    assert downloads == [streams[2]]
     output = capsys.readouterr().out
     assert "Available Audio Streams:" in output
-    assert "160kbps" in output
+    assert output.index("160kbps") < output.index("128kbps") < output.index("96kbps")

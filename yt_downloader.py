@@ -36,6 +36,32 @@ def sort_audio_streams(streams):
     return sorted(streams, key=audio_bitrate_kbps, reverse=True)
 
 
+def video_resolution_height(stream):
+    """Return the vertical pixel count for resolutions such as '720p' or '1080p60'."""
+    resolution = str(getattr(stream, "resolution", "") or "")
+    match = re.match(r"^\\s*(\\d+)p", resolution, flags=re.IGNORECASE)
+    return int(match.group(1)) if match else None
+
+
+def filter_video_streams(streams, max_resolution=None):
+    """Keep video streams at or below an optional vertical-resolution cap."""
+    available = list(streams)
+    if max_resolution is None:
+        return available
+    if (
+        not isinstance(max_resolution, int)
+        or isinstance(max_resolution, bool)
+        or max_resolution < 1
+    ):
+        raise ValueError("Maximum resolution must be a positive integer.")
+    return [
+        stream
+        for stream in available
+        if (height := video_resolution_height(stream)) is not None
+        and height <= max_resolution
+    ]
+
+
 def list_streams(streams, stream_type="Video"):
     """Print available stream quality, frame rate when present, and size."""
     print(f"\nAvailable {stream_type} Streams:")
@@ -72,11 +98,21 @@ def main(argv=None):
         help="Directory where the download will be saved (created if it does not exist)",
     )
     parser.add_argument(
+        "--max-resolution",
+        type=int,
+        metavar="HEIGHT",
+        help="Limit video streams to this vertical resolution (for example, 720)",
+    )
+    parser.add_argument(
         "--audio-only",
         action="store_true",
         help="Select audio-only streams ordered by numeric audio bitrate instead of progressive MP4 video",
     )
     args = parser.parse_args(argv)
+    if args.audio_only and args.max_resolution is not None:
+        parser.error("--max-resolution cannot be combined with --audio-only")
+    if args.max_resolution is not None and args.max_resolution < 1:
+        parser.error("--max-resolution must be a positive integer")
 
     try:
         from pytube import YouTube
@@ -96,6 +132,7 @@ def main(argv=None):
                 .order_by("resolution")
                 .desc()
             )
+            streams = filter_video_streams(streams, args.max_resolution)
             stream_type = "Video"
 
         if not streams:

@@ -39,7 +39,7 @@ def sort_audio_streams(streams):
 def video_resolution_height(stream):
     """Return the vertical pixel count for resolutions such as '720p' or '1080p60'."""
     resolution = str(getattr(stream, "resolution", "") or "")
-    match = re.match(r"^\\s*(\\d+)p", resolution, flags=re.IGNORECASE)
+    match = re.match(r"^\s*(\d+)p", resolution, flags=re.IGNORECASE)
     return int(match.group(1)) if match else None
 
 

@@ -33,3 +33,9 @@ def test_missing_resolution_cap_preserves_all_streams():
 def test_invalid_resolution_caps_are_rejected(limit):
     with pytest.raises(ValueError, match="positive integer"):
         filter_video_streams([], max_resolution=limit)
+
+def test_resolution_parser_accepts_whitespace_and_uppercase_suffix():
+    assert video_resolution_height(SimpleNamespace(resolution="  1440p")) == 1440
+    assert video_resolution_height(SimpleNamespace(resolution="2160P")) == 2160
+    assert video_resolution_height(SimpleNamespace(resolution="720")) is None
+

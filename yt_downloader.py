@@ -2,6 +2,7 @@
 """Download progressive MP4 video or audio-only streams from a YouTube URL."""
 
 import argparse
+import math
 import re
 import sys
 from pathlib import Path
@@ -76,15 +77,37 @@ def list_streams(streams, stream_type="Video"):
         print(f"{index}. {' - '.join(details)}")
 
 
-def download_stream(stream, output_dir=None):
-    """Download a selected stream, optionally creating a destination directory."""
+def validate_timeout(value):
+    """Return a positive finite download timeout in seconds."""
+    if isinstance(value, bool):
+        raise ValueError("Download timeout must be a positive finite number.")
+    try:
+        timeout = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Download timeout must be a positive finite number.") from exc
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError("Download timeout must be a positive finite number.")
+    return timeout
+
+
+def positive_timeout(value):
+    try:
+        return validate_timeout(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
+
+
+def download_stream(stream, output_dir=None, timeout=None):
+    """Download a selected stream with an optional network timeout."""
+    timeout_value = validate_timeout(timeout) if timeout is not None else None
+    download_options = {"timeout": timeout_value} if timeout_value is not None else {}
     print(f"\nDownloading: {stream.default_filename}")
     if output_dir is None:
-        stream.download()
+        stream.download(**download_options)
     else:
         destination = Path(output_dir).expanduser()
         destination.mkdir(parents=True, exist_ok=True)
-        stream.download(output_path=str(destination))
+        stream.download(output_path=str(destination), **download_options)
     print("\nDownload complete!")
 
 
@@ -102,6 +125,12 @@ def main(argv=None):
         type=int,
         metavar="HEIGHT",
         help="Limit video streams to this vertical resolution (for example, 720)",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=positive_timeout,
+        metavar="SECONDS",
+        help="Network timeout for each download request (positive finite seconds)",
     )
     parser.add_argument(
         "--audio-only",
@@ -145,7 +174,7 @@ def main(argv=None):
                 stream = select_stream(streams, args.index)
             except ValueError as exc:
                 parser.exit(2, f"Error: {exc}\n")
-            download_stream(stream, output_dir=args.output_dir)
+            download_stream(stream, output_dir=args.output_dir, timeout=args.timeout)
     except SystemExit:
         raise
     except Exception as exc:

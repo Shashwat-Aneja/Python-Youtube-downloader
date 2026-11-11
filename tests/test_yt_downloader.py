@@ -102,7 +102,7 @@ def test_audio_only_cli_selects_by_numeric_bitrate_without_video_filters(monkeyp
 
     monkeypatch.setitem(sys.modules, "pytube", SimpleNamespace(YouTube=FakeYouTube))
     downloads = []
-    monkeypatch.setattr("yt_downloader.download_stream", lambda stream, output_dir=None: downloads.append(stream))
+    monkeypatch.setattr("yt_downloader.download_stream", lambda stream, output_dir=None, timeout=None: downloads.append(stream))
 
     main(["https://example.test/video", "--audio-only", "--index", "2"])
 

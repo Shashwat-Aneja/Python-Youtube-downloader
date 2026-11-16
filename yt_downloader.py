@@ -74,7 +74,11 @@ def list_streams(streams, stream_type="Video"):
         details = [str(quality)]
         if fps is not None:
             details.append(f"{fps}fps")
-        details.append(f"{size / 1_000_000:.2f}MB" if size is not None else "size unknown")
+        valid_size = (
+            isinstance(size, (int, float)) and not isinstance(size, bool)
+            and math.isfinite(size) and size >= 0
+        )
+        details.append(f"{size / 1_000_000:.2f}MB" if valid_size else "size unknown")
         print(f"{index}. {' - '.join(details)}")
 
 

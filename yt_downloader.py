@@ -28,8 +28,9 @@ def select_stream(streams, index=None):
 
 def audio_bitrate_kbps(stream):
     """Extract the numeric bitrate from pytube values such as '160kbps'."""
-    match = re.search(r"\d+(?:\.\d+)?", str(getattr(stream, "abr", "")))
-    return float(match.group(0)) if match else -1.0
+    match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)kbps\s*", str(getattr(stream, "abr", "")), flags=re.IGNORECASE)
+    value = float(match.group(1)) if match else -1.0
+    return value if math.isfinite(value) and value > 0 else -1.0
 
 
 def sort_audio_streams(streams):
@@ -40,7 +41,7 @@ def sort_audio_streams(streams):
 def video_resolution_height(stream):
     """Return the vertical pixel count for resolutions such as '720p' or '1080p60'."""
     resolution = str(getattr(stream, "resolution", "") or "")
-    match = re.match(r"^\s*(\d+)p", resolution, flags=re.IGNORECASE)
+    match = re.fullmatch(r"\s*([1-9]\d*)p(?:[1-9]\d*)?\s*", resolution, flags=re.IGNORECASE)
     return int(match.group(1)) if match else None
 
 

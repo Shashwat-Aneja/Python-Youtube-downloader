@@ -139,6 +139,8 @@ def main(argv=None):
         help="Select audio-only streams ordered by numeric audio bitrate instead of progressive MP4 video",
     )
     args = parser.parse_args(argv)
+    if args.index is not None and args.index < 1:
+        parser.error("--index must be a positive integer")
     if args.audio_only and args.max_resolution is not None:
         parser.error("--max-resolution cannot be combined with --audio-only")
     if args.max_resolution is not None and args.max_resolution < 1:

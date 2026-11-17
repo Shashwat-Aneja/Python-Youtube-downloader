@@ -28,8 +28,9 @@ def select_stream(streams, index=None):
 
 def audio_bitrate_kbps(stream):
     """Extract the numeric bitrate from pytube values such as '160kbps'."""
-    match = re.search(r"\d+(?:\.\d+)?", str(getattr(stream, "abr", "")))
-    return float(match.group(0)) if match else -1.0
+    match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)kbps\s*", str(getattr(stream, "abr", "")), flags=re.IGNORECASE)
+    value = float(match.group(1)) if match else -1.0
+    return value if math.isfinite(value) and value > 0 else -1.0
 
 
 def sort_audio_streams(streams):
@@ -40,7 +41,7 @@ def sort_audio_streams(streams):
 def video_resolution_height(stream):
     """Return the vertical pixel count for resolutions such as '720p' or '1080p60'."""
     resolution = str(getattr(stream, "resolution", "") or "")
-    match = re.match(r"^\s*(\d+)p", resolution, flags=re.IGNORECASE)
+    match = re.fullmatch(r"\s*([1-9]\d*)p(?:[1-9]\d*)?\s*", resolution, flags=re.IGNORECASE)
     return int(match.group(1)) if match else None
 
 
@@ -63,17 +64,21 @@ def filter_video_streams(streams, max_resolution=None):
     ]
 
 
-def list_streams(streams, stream_type="Video"):
+def list_streams(streams, stream_type="Video", exact_size=False):
     """Print available stream quality, frame rate when present, and size."""
     print(f"\nAvailable {stream_type} Streams:")
     for index, stream in enumerate(streams, start=1):
         quality = getattr(stream, "resolution", None) or getattr(stream, "abr", None) or "quality unknown"
         fps = getattr(stream, "fps", None)
-        size = getattr(stream, "filesize", None)
+        size = getattr(stream, "filesize" if exact_size else "filesize_approx", None)
         details = [str(quality)]
         if fps is not None:
             details.append(f"{fps}fps")
-        details.append(f"{size / 1_000_000:.2f}MB" if size is not None else "size unknown")
+        valid_size = (
+            isinstance(size, (int, float)) and not isinstance(size, bool)
+            and math.isfinite(size) and size >= 0
+        )
+        details.append(f"{size / 1_000_000:.2f}MB" if valid_size else "size unknown")
         print(f"{index}. {' - '.join(details)}")
 
 
@@ -97,10 +102,19 @@ def positive_timeout(value):
         raise argparse.ArgumentTypeError(str(exc)) from exc
 
 
-def download_stream(stream, output_dir=None, timeout=None):
+def validate_filename(filename):
+    if (not isinstance(filename, str) or not filename.strip() or filename in {".", ".."}
+            or "/" in filename or "\\" in filename or "\0" in filename):
+        raise ValueError("Filename must be a non-empty file name without path separators.")
+    return filename
+
+
+def download_stream(stream, output_dir=None, timeout=None, filename=None):
     """Download a selected stream with an optional network timeout."""
     timeout_value = validate_timeout(timeout) if timeout is not None else None
     download_options = {"timeout": timeout_value} if timeout_value is not None else {}
+    if filename is not None:
+        download_options["filename"] = validate_filename(filename)
     print(f"\nDownloading: {stream.default_filename}")
     if output_dir is None:
         stream.download(**download_options)
@@ -137,7 +151,16 @@ def main(argv=None):
         action="store_true",
         help="Select audio-only streams ordered by numeric audio bitrate instead of progressive MP4 video",
     )
+    parser.add_argument("--exact-size", action="store_true", help="Request exact sizes when listing streams (may make extra network requests)")
+    parser.add_argument("--filename", help="Save using this base file name inside the output directory")
     args = parser.parse_args(argv)
+    if args.filename is not None:
+        try:
+            validate_filename(args.filename)
+        except ValueError as exc:
+            parser.error(str(exc))
+    if args.index is not None and args.index < 1:
+        parser.error("--index must be a positive integer")
     if args.audio_only and args.max_resolution is not None:
         parser.error("--max-resolution cannot be combined with --audio-only")
     if args.max_resolution is not None and args.max_resolution < 1:
@@ -168,13 +191,14 @@ def main(argv=None):
             parser.exit(1, f"Error: no matching {stream_type.lower()} streams are available for this video.\n")
 
         if args.list or args.index is not None:
-            list_streams(streams, stream_type=stream_type)
+            list_streams(streams, stream_type=stream_type, exact_size=args.exact_size)
         if args.index is not None or not args.list:
             try:
                 stream = select_stream(streams, args.index)
             except ValueError as exc:
                 parser.exit(2, f"Error: {exc}\n")
-            download_stream(stream, output_dir=args.output_dir, timeout=args.timeout)
+            options = {"filename": args.filename} if args.filename is not None else {}
+            download_stream(stream, output_dir=args.output_dir, timeout=args.timeout, **options)
     except SystemExit:
         raise
     except Exception as exc:

@@ -19,3 +19,5 @@ Supports listing available resolutions, selecting a specific quality, and downlo
 Install the required module:
 
 
+
+Stream listings use approximate sizes by default, avoiding a separate exact-size network request per stream. Use `--exact-size` when an exact byte count is needed; missing estimates display “size unknown”.

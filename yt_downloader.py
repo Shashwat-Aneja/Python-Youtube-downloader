@@ -64,13 +64,13 @@ def filter_video_streams(streams, max_resolution=None):
     ]
 
 
-def list_streams(streams, stream_type="Video"):
+def list_streams(streams, stream_type="Video", exact_size=False):
     """Print available stream quality, frame rate when present, and size."""
     print(f"\nAvailable {stream_type} Streams:")
     for index, stream in enumerate(streams, start=1):
         quality = getattr(stream, "resolution", None) or getattr(stream, "abr", None) or "quality unknown"
         fps = getattr(stream, "fps", None)
-        size = getattr(stream, "filesize", None)
+        size = getattr(stream, "filesize" if exact_size else "filesize_approx", None)
         details = [str(quality)]
         if fps is not None:
             details.append(f"{fps}fps")
@@ -142,6 +142,7 @@ def main(argv=None):
         action="store_true",
         help="Select audio-only streams ordered by numeric audio bitrate instead of progressive MP4 video",
     )
+    parser.add_argument("--exact-size", action="store_true", help="Request exact sizes when listing streams (may make extra network requests)")
     args = parser.parse_args(argv)
     if args.index is not None and args.index < 1:
         parser.error("--index must be a positive integer")
@@ -175,7 +176,7 @@ def main(argv=None):
             parser.exit(1, f"Error: no matching {stream_type.lower()} streams are available for this video.\n")
 
         if args.list or args.index is not None:
-            list_streams(streams, stream_type=stream_type)
+            list_streams(streams, stream_type=stream_type, exact_size=args.exact_size)
         if args.index is not None or not args.list:
             try:
                 stream = select_stream(streams, args.index)

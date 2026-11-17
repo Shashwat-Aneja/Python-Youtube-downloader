@@ -21,3 +21,5 @@ Install the required module:
 
 
 Stream listings use approximate sizes by default, avoiding a separate exact-size network request per stream. Use `--exact-size` when an exact byte count is needed; missing estimates display “size unknown”.
+
+Use `--filename lesson.mp4 --output-dir ./downloads` for a predictable output name. Directory traversal and path separators in the filename are rejected before metadata is requested.

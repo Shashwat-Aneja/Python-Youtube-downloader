@@ -70,7 +70,10 @@ def list_streams(streams, stream_type="Video", exact_size=False):
     for index, stream in enumerate(streams, start=1):
         quality = getattr(stream, "resolution", None) or getattr(stream, "abr", None) or "quality unknown"
         fps = getattr(stream, "fps", None)
-        size = getattr(stream, "filesize" if exact_size else "filesize_approx", None)
+        try:
+            size = getattr(stream, "filesize" if exact_size else "filesize_approx", None)
+        except (AttributeError, KeyError, TypeError, ValueError):
+            size = None
         details = [str(quality)]
         if fps is not None:
             details.append(f"{fps}fps")

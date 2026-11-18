@@ -5,6 +5,7 @@ import argparse
 import math
 import re
 import sys
+import unicodedata
 from pathlib import Path
 
 
@@ -109,6 +110,13 @@ def validate_filename(filename):
     if (not isinstance(filename, str) or not filename.strip() or filename in {".", ".."}
             or "/" in filename or "\\" in filename or "\0" in filename):
         raise ValueError("Filename must be a non-empty file name without path separators.")
+    if (any(ord(char) < 32 or char in '<>:"|?*' for char in filename)
+            or filename.endswith((".", " "))):
+        raise ValueError("Filename must use portable characters and cannot end in a dot or space.")
+    stem = unicodedata.normalize("NFKC", filename.split(".", 1)[0]).rstrip(" .").upper()
+    reserved = {"CON", "PRN", "AUX", "NUL"} | {f"{prefix}{digit}" for prefix in ("COM", "LPT") for digit in range(1, 10)}
+    if stem in reserved:
+        raise ValueError("Filename cannot use a reserved device name.")
     return filename
 
 

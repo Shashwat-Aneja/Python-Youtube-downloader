@@ -25,3 +25,5 @@ Stream listings use approximate sizes by default, avoiding a separate exact-size
 Use `--filename lesson.mp4 --output-dir ./downloads` for a predictable output name. Directory traversal and path separators in the filename are rejected before metadata is requested.
 
 Unavailable or malformed stream-size metadata now displays “size unknown” without aborting otherwise usable quality listings.
+
+Custom filenames reject Windows drive-relative paths, reserved device names, control characters and trailing dots/spaces, preventing output-directory escapes and device aliases on Windows. Ordinary Unicode filenames remain supported.

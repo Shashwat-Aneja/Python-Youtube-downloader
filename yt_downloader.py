@@ -2,6 +2,9 @@
 """Download progressive MP4 video or audio-only streams from a YouTube URL."""
 
 import argparse
+import json
+import os
+import tempfile
 import math
 import re
 import sys
@@ -80,10 +83,21 @@ def list_streams(streams, stream_type="Video", exact_size=False):
             details.append(f"{fps}fps")
         valid_size = (
             isinstance(size, (int, float)) and not isinstance(size, bool)
-            and math.isfinite(size) and size >= 0
+            and 0 <= size <= sys.float_info.max and math.isfinite(size)
         )
         details.append(f"{size / 1_000_000:.2f}MB" if valid_size else "size unknown")
         print(f"{index}. {' - '.join(details)}")
+
+
+def stream_metadata(streams):
+    """Describe stream choices without requesting exact sizes or downloading."""
+    records = []
+    for index, stream in enumerate(streams, start=1):
+        records.append({"index": index, "itag": getattr(stream, "itag", None),
+                        "resolution": getattr(stream, "resolution", None),
+                        "abr": getattr(stream, "abr", None), "fps": getattr(stream, "fps", None),
+                        "mime_type": getattr(stream, "mime_type", None)})
+    return records
 
 
 def validate_timeout(value):
@@ -92,7 +106,7 @@ def validate_timeout(value):
         raise ValueError("Download timeout must be a positive finite number.")
     try:
         timeout = float(value)
-    except (TypeError, ValueError) as exc:
+    except (TypeError, ValueError, OverflowError) as exc:
         raise ValueError("Download timeout must be a positive finite number.") from exc
     if not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("Download timeout must be a positive finite number.")
@@ -120,12 +134,26 @@ def validate_filename(filename):
     return filename
 
 
-def download_stream(stream, output_dir=None, timeout=None, filename=None):
+def download_stream(stream, output_dir=None, timeout=None, filename=None, no_overwrite=False):
     """Download a selected stream with an optional network timeout."""
     timeout_value = validate_timeout(timeout) if timeout is not None else None
     download_options = {"timeout": timeout_value} if timeout_value is not None else {}
     if filename is not None:
         download_options["filename"] = validate_filename(filename)
+    if no_overwrite:
+        destination = Path(output_dir or ".").expanduser()
+        destination.mkdir(parents=True, exist_ok=True)
+        name = validate_filename(filename if filename is not None else stream.default_filename)
+        final_path = destination / name
+        if final_path.exists() or final_path.is_symlink():
+            raise FileExistsError(f"Destination already exists: {final_path}")
+        with tempfile.TemporaryDirectory(prefix=".download-", dir=destination) as staging:
+            staged = Path(stream.download(output_path=staging, **download_options))
+            if staged.parent.resolve() != Path(staging).resolve() or staged.is_symlink() or not staged.is_file():
+                raise ValueError("Downloader returned an invalid staged file.")
+            os.link(staged, final_path)
+        print(f"Download complete: {final_path}")
+        return str(final_path)
     print(f"\nDownloading: {stream.default_filename}")
     if output_dir is None:
         stream.download(**download_options)
@@ -164,6 +192,8 @@ def main(argv=None):
     )
     parser.add_argument("--exact-size", action="store_true", help="Request exact sizes when listing streams (may make extra network requests)")
     parser.add_argument("--filename", help="Save using this base file name inside the output directory")
+    parser.add_argument("--json-streams", action="store_true", help="Print stream metadata as JSON without downloading or requesting sizes")
+    parser.add_argument("--no-overwrite", action="store_true", help="Stage downloads and publish only when the destination does not exist")
     args = parser.parse_args(argv)
     if args.filename is not None:
         try:
@@ -184,8 +214,9 @@ def main(argv=None):
 
     try:
         yt = YouTube(args.url)
-        print(f"\nTitle: {yt.title}")
-        print(f"Author: {yt.author}")
+        if not args.json_streams:
+            print(f"\nTitle: {yt.title}")
+            print(f"Author: {yt.author}")
         if args.audio_only:
             streams = sort_audio_streams(yt.streams.filter(only_audio=True))
             stream_type = "Audio"
@@ -201,6 +232,9 @@ def main(argv=None):
         if not streams:
             parser.exit(1, f"Error: no matching {stream_type.lower()} streams are available for this video.\n")
 
+        if args.json_streams:
+            print(json.dumps(stream_metadata(streams), allow_nan=False))
+            return
         if args.list or args.index is not None:
             list_streams(streams, stream_type=stream_type, exact_size=args.exact_size)
         if args.index is not None or not args.list:
@@ -209,6 +243,8 @@ def main(argv=None):
             except ValueError as exc:
                 parser.exit(2, f"Error: {exc}\n")
             options = {"filename": args.filename} if args.filename is not None else {}
+            if args.no_overwrite:
+                options["no_overwrite"] = True
             download_stream(stream, output_dir=args.output_dir, timeout=args.timeout, **options)
     except SystemExit:
         raise

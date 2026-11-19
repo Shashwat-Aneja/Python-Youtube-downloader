@@ -27,3 +27,7 @@ Use `--filename lesson.mp4 --output-dir ./downloads` for a predictable output na
 Unavailable or malformed stream-size metadata now displays “size unknown” without aborting otherwise usable quality listings.
 
 Custom filenames reject Windows drive-relative paths, reserved device names, control characters and trailing dots/spaces, preventing output-directory escapes and device aliases on Windows. Ordinary Unicode filenames remain supported.
+
+Use `--json-streams` for a JSON array of filtered stream choices, including their one-based indexes, itags, resolution, bitrate and MIME type. This mode never downloads or requests exact sizes.
+
+`--no-overwrite` stages a complete download in the destination filesystem and atomically publishes it with an exclusive hard link. Existing files (including concurrently created ones) are preserved, and failed downloads leave no final partial file. Filesystems without hard-link support fail without replacing an existing destination.

@@ -80,7 +80,7 @@ def list_streams(streams, stream_type="Video", exact_size=False):
             details.append(f"{fps}fps")
         valid_size = (
             isinstance(size, (int, float)) and not isinstance(size, bool)
-            and math.isfinite(size) and size >= 0
+            and 0 <= size <= sys.float_info.max and math.isfinite(size)
         )
         details.append(f"{size / 1_000_000:.2f}MB" if valid_size else "size unknown")
         print(f"{index}. {' - '.join(details)}")
@@ -92,7 +92,7 @@ def validate_timeout(value):
         raise ValueError("Download timeout must be a positive finite number.")
     try:
         timeout = float(value)
-    except (TypeError, ValueError) as exc:
+    except (TypeError, ValueError, OverflowError) as exc:
         raise ValueError("Download timeout must be a positive finite number.") from exc
     if not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("Download timeout must be a positive finite number.")

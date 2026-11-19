@@ -2,6 +2,7 @@
 """Download progressive MP4 video or audio-only streams from a YouTube URL."""
 
 import argparse
+import json
 import math
 import re
 import sys
@@ -86,6 +87,17 @@ def list_streams(streams, stream_type="Video", exact_size=False):
         print(f"{index}. {' - '.join(details)}")
 
 
+def stream_metadata(streams):
+    """Describe stream choices without requesting exact sizes or downloading."""
+    records = []
+    for index, stream in enumerate(streams, start=1):
+        records.append({"index": index, "itag": getattr(stream, "itag", None),
+                        "resolution": getattr(stream, "resolution", None),
+                        "abr": getattr(stream, "abr", None), "fps": getattr(stream, "fps", None),
+                        "mime_type": getattr(stream, "mime_type", None)})
+    return records
+
+
 def validate_timeout(value):
     """Return a positive finite download timeout in seconds."""
     if isinstance(value, bool):
@@ -164,6 +176,7 @@ def main(argv=None):
     )
     parser.add_argument("--exact-size", action="store_true", help="Request exact sizes when listing streams (may make extra network requests)")
     parser.add_argument("--filename", help="Save using this base file name inside the output directory")
+    parser.add_argument("--json-streams", action="store_true", help="Print stream metadata as JSON without downloading or requesting sizes")
     args = parser.parse_args(argv)
     if args.filename is not None:
         try:
@@ -184,8 +197,9 @@ def main(argv=None):
 
     try:
         yt = YouTube(args.url)
-        print(f"\nTitle: {yt.title}")
-        print(f"Author: {yt.author}")
+        if not args.json_streams:
+            print(f"\nTitle: {yt.title}")
+            print(f"Author: {yt.author}")
         if args.audio_only:
             streams = sort_audio_streams(yt.streams.filter(only_audio=True))
             stream_type = "Audio"
@@ -201,6 +215,9 @@ def main(argv=None):
         if not streams:
             parser.exit(1, f"Error: no matching {stream_type.lower()} streams are available for this video.\n")
 
+        if args.json_streams:
+            print(json.dumps(stream_metadata(streams), allow_nan=False))
+            return
         if args.list or args.index is not None:
             list_streams(streams, stream_type=stream_type, exact_size=args.exact_size)
         if args.index is not None or not args.list:

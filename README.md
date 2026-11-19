@@ -27,3 +27,5 @@ Use `--filename lesson.mp4 --output-dir ./downloads` for a predictable output na
 Unavailable or malformed stream-size metadata now displays “size unknown” without aborting otherwise usable quality listings.
 
 Custom filenames reject Windows drive-relative paths, reserved device names, control characters and trailing dots/spaces, preventing output-directory escapes and device aliases on Windows. Ordinary Unicode filenames remain supported.
+
+Use `--json-streams` for a JSON array of filtered stream choices, including their one-based indexes, itags, resolution, bitrate and MIME type. This mode never downloads or requests exact sizes.

@@ -134,8 +134,16 @@ def validate_filename(filename):
     return filename
 
 
-def download_stream(stream, output_dir=None, timeout=None, filename=None, no_overwrite=False):
+def download_stream(stream, output_dir=None, timeout=None, filename=None, no_overwrite=False, max_size_bytes=None):
     """Download a selected stream with an optional network timeout."""
+    if max_size_bytes is not None:
+        if not isinstance(max_size_bytes, int) or isinstance(max_size_bytes, bool) or max_size_bytes < 1:
+            raise ValueError("Maximum download size must be a positive integer of bytes.")
+        size = getattr(stream, "filesize", None)
+        if not isinstance(size, int) or isinstance(size, bool) or size < 0:
+            raise ValueError("Cannot enforce the size limit without a valid exact stream size.")
+        if size > max_size_bytes:
+            raise ValueError(f"Stream size {size} exceeds download limit {max_size_bytes} bytes.")
     timeout_value = validate_timeout(timeout) if timeout is not None else None
     download_options = {"timeout": timeout_value} if timeout_value is not None else {}
     if filename is not None:
@@ -194,7 +202,10 @@ def main(argv=None):
     parser.add_argument("--filename", help="Save using this base file name inside the output directory")
     parser.add_argument("--json-streams", action="store_true", help="Print stream metadata as JSON without downloading or requesting sizes")
     parser.add_argument("--no-overwrite", action="store_true", help="Stage downloads and publish only when the destination does not exist")
+    parser.add_argument("--max-size-bytes", type=int, help="Reject an oversized download using its exact size (may make an extra metadata request)")
     args = parser.parse_args(argv)
+    if args.max_size_bytes is not None and args.max_size_bytes < 1:
+        parser.error("--max-size-bytes must be positive")
     if args.filename is not None:
         try:
             validate_filename(args.filename)
@@ -245,6 +256,8 @@ def main(argv=None):
             options = {"filename": args.filename} if args.filename is not None else {}
             if args.no_overwrite:
                 options["no_overwrite"] = True
+            if args.max_size_bytes is not None:
+                options["max_size_bytes"] = args.max_size_bytes
             download_stream(stream, output_dir=args.output_dir, timeout=args.timeout, **options)
     except SystemExit:
         raise

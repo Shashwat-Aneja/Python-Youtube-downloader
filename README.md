@@ -31,3 +31,5 @@ Custom filenames reject Windows drive-relative paths, reserved device names, con
 Use `--json-streams` for a JSON array of filtered stream choices, including their one-based indexes, itags, resolution, bitrate and MIME type. This mode never downloads or requests exact sizes.
 
 `--no-overwrite` stages a complete download in the destination filesystem and atomically publishes it with an exclusive hard link. Existing files (including concurrently created ones) are preserved, and failed downloads leave no final partial file. Filesystems without hard-link support fail without replacing an existing destination.
+
+`--max-size-bytes N` checks the exact stream size before starting a download or creating its destination. Unknown or invalid sizes fail closed. This option may make an additional metadata request; the default listing and download paths do not request exact sizes for this check.

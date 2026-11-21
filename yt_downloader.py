@@ -12,7 +12,7 @@ import unicodedata
 from pathlib import Path
 
 
-def select_stream(streams, index=None):
+def select_stream(streams, index=None, itag=None):
     """Select from streams ordered highest-quality first.
 
     Indexes are one-based for CLI consistency. Without an index, choose the
@@ -21,6 +21,15 @@ def select_stream(streams, index=None):
     available = list(streams)
     if not available:
         raise ValueError("No matching streams are available for this video.")
+    if itag is not None:
+        if index is not None:
+            raise ValueError("Select a stream by index or itag, not both.")
+        if not isinstance(itag, int) or isinstance(itag, bool) or itag < 1:
+            raise ValueError("Stream itag must be a positive integer.")
+        matches = [stream for stream in available if getattr(stream, "itag", None) == itag]
+        if len(matches) != 1:
+            raise ValueError("Requested itag must identify exactly one matching stream.")
+        return matches[0]
     if index is None:
         return available[0]
     if not isinstance(index, int) or isinstance(index, bool) or index < 1:
@@ -176,7 +185,9 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description="Download YouTube video or audio streams using pytube")
     parser.add_argument("url", help="YouTube video URL")
     parser.add_argument("--list", action="store_true", help="List available stream qualities")
-    parser.add_argument("--index", type=int, help="Download a stream by its one-based listed index")
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument("--index", type=int, help="Download a stream by its one-based listed index")
+    selection.add_argument("--itag", type=int, help="Download the matching stable YouTube stream format identifier")
     parser.add_argument(
         "--output-dir",
         help="Directory where the download will be saved (created if it does not exist)",
@@ -211,6 +222,8 @@ def main(argv=None):
             validate_filename(args.filename)
         except ValueError as exc:
             parser.error(str(exc))
+    if args.itag is not None and args.itag < 1:
+        parser.error("--itag must be a positive integer")
     if args.index is not None and args.index < 1:
         parser.error("--index must be a positive integer")
     if args.audio_only and args.max_resolution is not None:
@@ -246,11 +259,11 @@ def main(argv=None):
         if args.json_streams:
             print(json.dumps(stream_metadata(streams), allow_nan=False))
             return
-        if args.list or args.index is not None:
+        if args.list or args.index is not None or args.itag is not None:
             list_streams(streams, stream_type=stream_type, exact_size=args.exact_size)
-        if args.index is not None or not args.list:
+        if args.index is not None or args.itag is not None or not args.list:
             try:
-                stream = select_stream(streams, args.index)
+                stream = select_stream(streams, args.index, **({"itag": args.itag} if args.itag is not None else {}))
             except ValueError as exc:
                 parser.exit(2, f"Error: {exc}\n")
             options = {"filename": args.filename} if args.filename is not None else {}

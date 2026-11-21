@@ -33,3 +33,5 @@ Use `--json-streams` for a JSON array of filtered stream choices, including thei
 `--no-overwrite` stages a complete download in the destination filesystem and atomically publishes it with an exclusive hard link. Existing files (including concurrently created ones) are preserved, and failed downloads leave no final partial file. Filesystems without hard-link support fail without replacing an existing destination.
 
 `--max-size-bytes N` checks the exact stream size before starting a download or creating its destination. Unknown or invalid sizes fail closed. This option may make an additional metadata request; the default listing and download paths do not request exact sizes for this check.
+
+`--itag 140` selects a matching stream by its format identifier instead of a list position. It is mutually exclusive with `--index` and fails if the filtered stream list has no unique match. Discover identifiers with `--json-streams`; identifiers do not guarantee a format exists on every video.

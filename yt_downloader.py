@@ -214,7 +214,10 @@ def main(argv=None):
     parser.add_argument("--json-streams", action="store_true", help="Print stream metadata as JSON without downloading or requesting sizes")
     parser.add_argument("--no-overwrite", action="store_true", help="Stage downloads and publish only when the destination does not exist")
     parser.add_argument("--max-size-bytes", type=int, help="Reject an oversized download using its exact size (may make an extra metadata request)")
+    parser.add_argument("--audio-format", choices=("mp4", "webm"), help="Restrict audio-only streams to a selected container")
     args = parser.parse_args(argv)
+    if args.audio_format is not None and not args.audio_only:
+        parser.error("--audio-format requires --audio-only")
     if args.max_size_bytes is not None and args.max_size_bytes < 1:
         parser.error("--max-size-bytes must be positive")
     if args.filename is not None:
@@ -242,7 +245,10 @@ def main(argv=None):
             print(f"\nTitle: {yt.title}")
             print(f"Author: {yt.author}")
         if args.audio_only:
-            streams = sort_audio_streams(yt.streams.filter(only_audio=True))
+            filters = {"only_audio": True}
+            if args.audio_format:
+                filters["file_extension"] = args.audio_format
+            streams = sort_audio_streams(yt.streams.filter(**filters))
             stream_type = "Audio"
         else:
             streams = list(

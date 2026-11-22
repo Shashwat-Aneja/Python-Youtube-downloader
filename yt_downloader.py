@@ -173,12 +173,13 @@ def download_stream(stream, output_dir=None, timeout=None, filename=None, no_ove
         return str(final_path)
     print(f"\nDownloading: {stream.default_filename}")
     if output_dir is None:
-        stream.download(**download_options)
+        downloaded_path = stream.download(**download_options)
     else:
         destination = Path(output_dir).expanduser()
         destination.mkdir(parents=True, exist_ok=True)
-        stream.download(output_path=str(destination), **download_options)
+        downloaded_path = stream.download(output_path=str(destination), **download_options)
     print("\nDownload complete!")
+    return downloaded_path
 
 
 def main(argv=None):

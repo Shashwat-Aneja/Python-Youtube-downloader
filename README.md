@@ -35,3 +35,7 @@ Use `--json-streams` for a JSON array of filtered stream choices, including thei
 `--max-size-bytes N` checks the exact stream size before starting a download or creating its destination. Unknown or invalid sizes fail closed. This option may make an additional metadata request; the default listing and download paths do not request exact sizes for this check.
 
 `--itag 140` selects a matching stream by its format identifier instead of a list position. It is mutually exclusive with `--index` and fails if the filtered stream list has no unique match. Discover identifiers with `--json-streams`; identifiers do not guarantee a format exists on every video.
+
+`--audio-only --audio-format mp4` or `webm` restricts selection to a compatible audio container before sorting or itag selection. It also applies to JSON listings; no matching streams remains a controlled failure.
+
+Programmatic `download_stream` calls now return the path reported by the underlying download operation, including the default-output-directory path. The exclusive no-overwrite mode continues to return its published final path.

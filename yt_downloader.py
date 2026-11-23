@@ -77,6 +77,11 @@ def filter_video_streams(streams, max_resolution=None):
     ]
 
 
+def safe_terminal_text(value):
+    """Escape non-printable metadata while preserving printable Unicode."""
+    return "".join(char if char.isprintable() else repr(char)[1:-1] for char in str(value))
+
+
 def list_streams(streams, stream_type="Video", exact_size=False):
     """Print available stream quality, frame rate when present, and size."""
     print(f"\nAvailable {stream_type} Streams:")
@@ -87,9 +92,9 @@ def list_streams(streams, stream_type="Video", exact_size=False):
             size = getattr(stream, "filesize" if exact_size else "filesize_approx", None)
         except (AttributeError, KeyError, TypeError, ValueError):
             size = None
-        details = [str(quality)]
+        details = [safe_terminal_text(quality)]
         if fps is not None:
-            details.append(f"{fps}fps")
+            details.append(f"{safe_terminal_text(fps)}fps")
         valid_size = (
             isinstance(size, (int, float)) and not isinstance(size, bool)
             and 0 <= size <= sys.float_info.max and math.isfinite(size)
@@ -98,7 +103,7 @@ def list_streams(streams, stream_type="Video", exact_size=False):
         print(f"{index}. {' - '.join(details)}")
 
 
-def stream_metadata(streams):
+def stream_metadata(streams, include_approx_size=False):
     """Describe stream choices without requesting exact sizes or downloading."""
     records = []
     for index, stream in enumerate(streams, start=1):
@@ -106,6 +111,13 @@ def stream_metadata(streams):
                         "resolution": getattr(stream, "resolution", None),
                         "abr": getattr(stream, "abr", None), "fps": getattr(stream, "fps", None),
                         "mime_type": getattr(stream, "mime_type", None)})
+        if include_approx_size:
+            try:
+                size = getattr(stream, "filesize_approx", None)
+            except (AttributeError, KeyError, TypeError, ValueError):
+                size = None
+            valid = isinstance(size, (int, float)) and not isinstance(size, bool) and 0 <= size <= sys.float_info.max and math.isfinite(size)
+            records[-1]["filesize_approx_bytes"] = size if valid else None
     return records
 
 
@@ -169,9 +181,9 @@ def download_stream(stream, output_dir=None, timeout=None, filename=None, no_ove
             if staged.parent.resolve() != Path(staging).resolve() or staged.is_symlink() or not staged.is_file():
                 raise ValueError("Downloader returned an invalid staged file.")
             os.link(staged, final_path)
-        print(f"Download complete: {final_path}")
+        print(f"Download complete: {safe_terminal_text(final_path)}")
         return str(final_path)
-    print(f"\nDownloading: {stream.default_filename}")
+    print(f"\nDownloading: {safe_terminal_text(stream.default_filename)}")
     if output_dir is None:
         downloaded_path = stream.download(**download_options)
     else:
@@ -216,7 +228,10 @@ def main(argv=None):
     parser.add_argument("--no-overwrite", action="store_true", help="Stage downloads and publish only when the destination does not exist")
     parser.add_argument("--max-size-bytes", type=int, help="Reject an oversized download using its exact size (may make an extra metadata request)")
     parser.add_argument("--audio-format", choices=("mp4", "webm"), help="Restrict audio-only streams to a selected container")
+    parser.add_argument("--include-approx-size", action="store_true", help="Include approximate byte sizes in JSON stream metadata")
     args = parser.parse_args(argv)
+    if args.include_approx_size and not args.json_streams:
+        parser.error("--include-approx-size requires --json-streams")
     if args.audio_format is not None and not args.audio_only:
         parser.error("--audio-format requires --audio-only")
     if args.max_size_bytes is not None and args.max_size_bytes < 1:
@@ -243,8 +258,8 @@ def main(argv=None):
     try:
         yt = YouTube(args.url)
         if not args.json_streams:
-            print(f"\nTitle: {yt.title}")
-            print(f"Author: {yt.author}")
+            print(f"\nTitle: {safe_terminal_text(yt.title)}")
+            print(f"Author: {safe_terminal_text(yt.author)}")
         if args.audio_only:
             filters = {"only_audio": True}
             if args.audio_format:
@@ -264,7 +279,7 @@ def main(argv=None):
             parser.exit(1, f"Error: no matching {stream_type.lower()} streams are available for this video.\n")
 
         if args.json_streams:
-            print(json.dumps(stream_metadata(streams), allow_nan=False))
+            print(json.dumps(stream_metadata(streams, **({"include_approx_size": True} if args.include_approx_size else {})), allow_nan=False))
             return
         if args.list or args.index is not None or args.itag is not None:
             list_streams(streams, stream_type=stream_type, exact_size=args.exact_size)

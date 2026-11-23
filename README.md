@@ -39,3 +39,5 @@ Use `--json-streams` for a JSON array of filtered stream choices, including thei
 `--audio-only --audio-format mp4` or `webm` restricts selection to a compatible audio container before sorting or itag selection. It also applies to JSON listings; no matching streams remains a controlled failure.
 
 Programmatic `download_stream` calls now return the path reported by the underlying download operation, including the default-output-directory path. The exclusive no-overwrite mode continues to return its published final path.
+
+`--json-streams --include-approx-size` adds `filesize_approx_bytes` from approximate stream metadata, or null when unavailable/invalid. It never requests the exact `filesize` property. These estimates are not download size enforcement; JSON listings omit size access by default.

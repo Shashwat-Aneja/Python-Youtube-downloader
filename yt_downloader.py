@@ -98,7 +98,7 @@ def list_streams(streams, stream_type="Video", exact_size=False):
         print(f"{index}. {' - '.join(details)}")
 
 
-def stream_metadata(streams):
+def stream_metadata(streams, include_approx_size=False):
     """Describe stream choices without requesting exact sizes or downloading."""
     records = []
     for index, stream in enumerate(streams, start=1):
@@ -106,6 +106,13 @@ def stream_metadata(streams):
                         "resolution": getattr(stream, "resolution", None),
                         "abr": getattr(stream, "abr", None), "fps": getattr(stream, "fps", None),
                         "mime_type": getattr(stream, "mime_type", None)})
+        if include_approx_size:
+            try:
+                size = getattr(stream, "filesize_approx", None)
+            except (AttributeError, KeyError, TypeError, ValueError):
+                size = None
+            valid = isinstance(size, (int, float)) and not isinstance(size, bool) and 0 <= size <= sys.float_info.max and math.isfinite(size)
+            records[-1]["filesize_approx_bytes"] = size if valid else None
     return records
 
 
@@ -216,7 +223,10 @@ def main(argv=None):
     parser.add_argument("--no-overwrite", action="store_true", help="Stage downloads and publish only when the destination does not exist")
     parser.add_argument("--max-size-bytes", type=int, help="Reject an oversized download using its exact size (may make an extra metadata request)")
     parser.add_argument("--audio-format", choices=("mp4", "webm"), help="Restrict audio-only streams to a selected container")
+    parser.add_argument("--include-approx-size", action="store_true", help="Include approximate byte sizes in JSON stream metadata")
     args = parser.parse_args(argv)
+    if args.include_approx_size and not args.json_streams:
+        parser.error("--include-approx-size requires --json-streams")
     if args.audio_format is not None and not args.audio_only:
         parser.error("--audio-format requires --audio-only")
     if args.max_size_bytes is not None and args.max_size_bytes < 1:
@@ -264,7 +274,7 @@ def main(argv=None):
             parser.exit(1, f"Error: no matching {stream_type.lower()} streams are available for this video.\n")
 
         if args.json_streams:
-            print(json.dumps(stream_metadata(streams), allow_nan=False))
+            print(json.dumps(stream_metadata(streams, **({"include_approx_size": True} if args.include_approx_size else {})), allow_nan=False))
             return
         if args.list or args.index is not None or args.itag is not None:
             list_streams(streams, stream_type=stream_type, exact_size=args.exact_size)

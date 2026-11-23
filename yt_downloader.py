@@ -77,6 +77,11 @@ def filter_video_streams(streams, max_resolution=None):
     ]
 
 
+def safe_terminal_text(value):
+    """Escape non-printable metadata while preserving printable Unicode."""
+    return "".join(char if char.isprintable() else repr(char)[1:-1] for char in str(value))
+
+
 def list_streams(streams, stream_type="Video", exact_size=False):
     """Print available stream quality, frame rate when present, and size."""
     print(f"\nAvailable {stream_type} Streams:")
@@ -87,9 +92,9 @@ def list_streams(streams, stream_type="Video", exact_size=False):
             size = getattr(stream, "filesize" if exact_size else "filesize_approx", None)
         except (AttributeError, KeyError, TypeError, ValueError):
             size = None
-        details = [str(quality)]
+        details = [safe_terminal_text(quality)]
         if fps is not None:
-            details.append(f"{fps}fps")
+            details.append(f"{safe_terminal_text(fps)}fps")
         valid_size = (
             isinstance(size, (int, float)) and not isinstance(size, bool)
             and 0 <= size <= sys.float_info.max and math.isfinite(size)
@@ -176,9 +181,9 @@ def download_stream(stream, output_dir=None, timeout=None, filename=None, no_ove
             if staged.parent.resolve() != Path(staging).resolve() or staged.is_symlink() or not staged.is_file():
                 raise ValueError("Downloader returned an invalid staged file.")
             os.link(staged, final_path)
-        print(f"Download complete: {final_path}")
+        print(f"Download complete: {safe_terminal_text(final_path)}")
         return str(final_path)
-    print(f"\nDownloading: {stream.default_filename}")
+    print(f"\nDownloading: {safe_terminal_text(stream.default_filename)}")
     if output_dir is None:
         downloaded_path = stream.download(**download_options)
     else:
@@ -253,8 +258,8 @@ def main(argv=None):
     try:
         yt = YouTube(args.url)
         if not args.json_streams:
-            print(f"\nTitle: {yt.title}")
-            print(f"Author: {yt.author}")
+            print(f"\nTitle: {safe_terminal_text(yt.title)}")
+            print(f"Author: {safe_terminal_text(yt.author)}")
         if args.audio_only:
             filters = {"only_audio": True}
             if args.audio_format:

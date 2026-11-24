@@ -43,3 +43,5 @@ Programmatic `download_stream` calls now return the path reported by the underly
 `--json-streams --include-approx-size` adds `filesize_approx_bytes` from approximate stream metadata, or null when unavailable/invalid. It never requests the exact `filesize` property. These estimates are not download size enforcement; JSON listings omit size access by default.
 
 `--audio-only --max-audio-bitrate 128` limits available audio formats to a positive kbps ceiling before selection or JSON listing. Unknown bitrates are excluded when a cap is set; remaining formats stay ordered by descending numeric bitrate. This constrains format bitrate, not the exact final download size.
+
+`--min-resolution 720 --max-resolution 1080` restricts progressive video choices to an inclusive quality range before listing or download. A floor requires video mode; unknown resolutions are excluded, and reversed bounds fail before constructing a YouTube client.

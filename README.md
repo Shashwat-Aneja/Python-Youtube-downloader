@@ -45,3 +45,5 @@ Programmatic `download_stream` calls now return the path reported by the underly
 `--audio-only --max-audio-bitrate 128` limits available audio formats to a positive kbps ceiling before selection or JSON listing. Unknown bitrates are excluded when a cap is set; remaining formats stay ordered by descending numeric bitrate. This constrains format bitrate, not the exact final download size.
 
 `--min-resolution 720 --max-resolution 1080` restricts progressive video choices to an inclusive quality range before listing or download. A floor requires video mode; unknown resolutions are excluded, and reversed bounds fail before constructing a YouTube client.
+
+When `--max-size-bytes` is supplied, downloads are staged and their actual file size is checked before publication, in addition to metadata preflight. Understated metadata cannot cause an oversized artifact to replace an existing file. Staging is cleaned on failure. This bounds published file size, not bytes transferred before the server stream finishes.

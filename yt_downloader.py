@@ -175,18 +175,23 @@ def download_stream(stream, output_dir=None, timeout=None, filename=None, no_ove
     download_options = {"timeout": timeout_value} if timeout_value is not None else {}
     if filename is not None:
         download_options["filename"] = validate_filename(filename)
-    if no_overwrite:
+    if no_overwrite or max_size_bytes is not None:
         destination = Path(output_dir or ".").expanduser()
         destination.mkdir(parents=True, exist_ok=True)
         name = validate_filename(filename if filename is not None else stream.default_filename)
         final_path = destination / name
-        if final_path.exists() or final_path.is_symlink():
+        if no_overwrite and (final_path.exists() or final_path.is_symlink()):
             raise FileExistsError(f"Destination already exists: {final_path}")
         with tempfile.TemporaryDirectory(prefix=".download-", dir=destination) as staging:
             staged = Path(stream.download(output_path=staging, **download_options))
             if staged.parent.resolve() != Path(staging).resolve() or staged.is_symlink() or not staged.is_file():
                 raise ValueError("Downloader returned an invalid staged file.")
-            os.link(staged, final_path)
+            if max_size_bytes is not None and staged.stat().st_size > max_size_bytes:
+                raise ValueError("Downloaded file exceeds the configured byte limit.")
+            if no_overwrite:
+                os.link(staged, final_path)
+            else:
+                os.replace(staged, final_path)
         print(f"Download complete: {safe_terminal_text(final_path)}")
         return str(final_path)
     print(f"\nDownloading: {safe_terminal_text(stream.default_filename)}")
@@ -311,7 +316,7 @@ def main(argv=None):
     except SystemExit:
         raise
     except Exception as exc:
-        parser.exit(1, f"Error processing video: {exc}\n")
+        parser.exit(1, f"Error processing video: {safe_terminal_text(exc)}\n")
 
 
 if __name__ == "__main__":

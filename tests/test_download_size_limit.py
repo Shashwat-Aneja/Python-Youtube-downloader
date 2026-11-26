@@ -8,6 +8,10 @@ def test_oversized_or_unknown_size_never_starts_download(size,tmp_path):
     with pytest.raises(ValueError):download_stream(stream,tmp_path/'out',max_size_bytes=100)
     assert not (tmp_path/'out').exists()
 def test_exact_limit_is_allowed(tmp_path):
-    calls=[];stream=SimpleNamespace(filesize=100,default_filename='clip.mp4',download=lambda **options:calls.append(options))
+    from pathlib import Path
+    calls=[]
+    def download(**options):
+        calls.append(options);p=Path(options['output_path'])/'clip.mp4';p.write_bytes(b'x'*100);return str(p)
+    stream=SimpleNamespace(filesize=100,default_filename='clip.mp4',download=download)
     download_stream(stream,tmp_path,max_size_bytes=100)
     assert len(calls)==1

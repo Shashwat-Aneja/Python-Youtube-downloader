@@ -316,7 +316,7 @@ def main(argv=None):
     except SystemExit:
         raise
     except Exception as exc:
-        parser.exit(1, f"Error processing video: {exc}\n")
+        parser.exit(1, f"Error processing video: {safe_terminal_text(exc)}\n")
 
 
 if __name__ == "__main__":

@@ -47,3 +47,5 @@ Programmatic `download_stream` calls now return the path reported by the underly
 `--min-resolution 720 --max-resolution 1080` restricts progressive video choices to an inclusive quality range before listing or download. A floor requires video mode; unknown resolutions are excluded, and reversed bounds fail before constructing a YouTube client.
 
 When `--max-size-bytes` is supplied, downloads are staged and their actual file size is checked before publication, in addition to metadata preflight. Understated metadata cannot cause an oversized artifact to replace an existing file. Staging is cleaned on failure. This bounds published file size, not bytes transferred before the server stream finishes.
+
+Provider/processing error text is rendered through the same terminal control-character escaping used for remote metadata. Printable Unicode is preserved; embedded escape sequences and line-control characters are displayed literally on stderr.

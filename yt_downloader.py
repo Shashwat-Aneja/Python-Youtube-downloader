@@ -51,13 +51,18 @@ def sort_audio_streams(streams):
     return sorted(streams, key=audio_bitrate_kbps, reverse=True)
 
 
-def filter_audio_streams(streams, max_bitrate=None):
+def filter_audio_streams(streams, max_bitrate=None, min_bitrate=None):
     available = list(streams)
-    if max_bitrate is None:
+    if max_bitrate is None and min_bitrate is None:
         return available
-    if isinstance(max_bitrate, bool) or not isinstance(max_bitrate, int) or max_bitrate < 1:
-        raise ValueError("Maximum audio bitrate must be a positive integer in kbps.")
-    return [stream for stream in available if 0 < audio_bitrate_kbps(stream) <= max_bitrate]
+    for label, bound in (("Maximum", max_bitrate), ("Minimum", min_bitrate)):
+        if bound is not None and (isinstance(bound, bool) or not isinstance(bound, int) or bound < 1):
+            raise ValueError(f"{label} audio bitrate must be a positive integer in kbps.")
+    if min_bitrate is not None and max_bitrate is not None and min_bitrate > max_bitrate:
+        raise ValueError("Minimum audio bitrate cannot exceed maximum audio bitrate.")
+    return [stream for stream in available if (bitrate := audio_bitrate_kbps(stream)) > 0
+            and (min_bitrate is None or bitrate >= min_bitrate)
+            and (max_bitrate is None or bitrate <= max_bitrate)]
 
 
 def video_resolution_height(stream):
@@ -81,6 +86,20 @@ def filter_video_streams(streams, max_resolution=None, min_resolution=None):
             if (height := video_resolution_height(stream)) is not None
             and (min_resolution is None or height >= min_resolution)
             and (max_resolution is None or height <= max_resolution)]
+
+
+def filter_video_fps(streams, max_fps=None):
+    available = list(streams)
+    if max_fps is None:
+        return available
+    if isinstance(max_fps, bool) or not isinstance(max_fps, int) or not 1 <= max_fps <= 1000:
+        raise ValueError("Maximum FPS must be an integer from 1 to 1000.")
+    selected = []
+    for stream in available:
+        fps = getattr(stream, "fps", None)
+        if isinstance(fps, int) and not isinstance(fps, bool) and 0 < fps <= max_fps:
+            selected.append(stream)
+    return selected
 
 
 def safe_terminal_text(value):
@@ -242,7 +261,13 @@ def main(argv=None):
     parser.add_argument("--include-approx-size", action="store_true", help="Include approximate byte sizes in JSON stream metadata")
     parser.add_argument("--max-audio-bitrate", type=int, help="Limit audio-only choices to this bitrate in kbps; unknown rates are excluded")
     parser.add_argument("--min-resolution", type=int, help="Require video vertical resolution at or above this positive height")
+    parser.add_argument("--min-audio-bitrate", type=int, help="Require audio-only bitrate at or above this kbps; unknown rates are excluded")
+    parser.add_argument("--max-fps", type=int, help="Limit video frame rate (1..1000); unknown rates are excluded")
     args = parser.parse_args(argv)
+    if args.max_fps is not None and (args.audio_only or not 1 <= args.max_fps <= 1000):
+        parser.error("--max-fps requires video mode and a value from 1 to 1000")
+    if args.min_audio_bitrate is not None and (not args.audio_only or args.min_audio_bitrate < 1 or (args.max_audio_bitrate is not None and args.min_audio_bitrate > args.max_audio_bitrate)):
+        parser.error("--min-audio-bitrate requires audio mode and ordered positive bitrate bounds")
     if args.min_resolution is not None and (args.audio_only or args.min_resolution < 1 or (args.max_resolution is not None and args.min_resolution > args.max_resolution)):
         parser.error("--min-resolution requires video mode and ordered positive resolution bounds")
     if args.max_audio_bitrate is not None and (not args.audio_only or args.max_audio_bitrate < 1):
@@ -282,8 +307,8 @@ def main(argv=None):
             if args.audio_format:
                 filters["file_extension"] = args.audio_format
             streams = sort_audio_streams(yt.streams.filter(**filters))
-            if args.max_audio_bitrate is not None:
-                streams = filter_audio_streams(streams, args.max_audio_bitrate)
+            if args.max_audio_bitrate is not None or args.min_audio_bitrate is not None:
+                streams = filter_audio_streams(streams, args.max_audio_bitrate, **({"min_bitrate": args.min_audio_bitrate} if args.min_audio_bitrate is not None else {}))
             stream_type = "Audio"
         else:
             streams = list(
@@ -292,6 +317,8 @@ def main(argv=None):
                 .desc()
             )
             streams = filter_video_streams(streams, args.max_resolution, **({"min_resolution": args.min_resolution} if args.min_resolution is not None else {}))
+            if args.max_fps is not None:
+                streams = filter_video_fps(streams, args.max_fps)
             stream_type = "Video"
 
         if not streams:

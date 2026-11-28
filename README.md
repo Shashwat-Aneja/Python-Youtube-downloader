@@ -49,3 +49,5 @@ Programmatic `download_stream` calls now return the path reported by the underly
 When `--max-size-bytes` is supplied, downloads are staged and their actual file size is checked before publication, in addition to metadata preflight. Understated metadata cannot cause an oversized artifact to replace an existing file. Staging is cleaned on failure. This bounds published file size, not bytes transferred before the server stream finishes.
 
 Provider/processing error text is rendered through the same terminal control-character escaping used for remote metadata. Printable Unicode is preserved; embedded escape sequences and line-control characters are displayed literally on stderr.
+
+`--audio-only --min-audio-bitrate 128` excludes lower or unknown bitrates. Combine with `--max-audio-bitrate` for an inclusive quality window. Selection applies consistently to listing, JSON metadata and downloads; unordered/nonpositive bounds fail before provider access.

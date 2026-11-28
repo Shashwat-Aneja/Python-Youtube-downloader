@@ -88,6 +88,20 @@ def filter_video_streams(streams, max_resolution=None, min_resolution=None):
             and (max_resolution is None or height <= max_resolution)]
 
 
+def filter_video_fps(streams, max_fps=None):
+    available = list(streams)
+    if max_fps is None:
+        return available
+    if isinstance(max_fps, bool) or not isinstance(max_fps, int) or not 1 <= max_fps <= 1000:
+        raise ValueError("Maximum FPS must be an integer from 1 to 1000.")
+    selected = []
+    for stream in available:
+        fps = getattr(stream, "fps", None)
+        if isinstance(fps, int) and not isinstance(fps, bool) and 0 < fps <= max_fps:
+            selected.append(stream)
+    return selected
+
+
 def safe_terminal_text(value):
     """Escape non-printable metadata while preserving printable Unicode."""
     return "".join(char if char.isprintable() else repr(char)[1:-1] for char in str(value))
@@ -248,7 +262,10 @@ def main(argv=None):
     parser.add_argument("--max-audio-bitrate", type=int, help="Limit audio-only choices to this bitrate in kbps; unknown rates are excluded")
     parser.add_argument("--min-resolution", type=int, help="Require video vertical resolution at or above this positive height")
     parser.add_argument("--min-audio-bitrate", type=int, help="Require audio-only bitrate at or above this kbps; unknown rates are excluded")
+    parser.add_argument("--max-fps", type=int, help="Limit video frame rate (1..1000); unknown rates are excluded")
     args = parser.parse_args(argv)
+    if args.max_fps is not None and (args.audio_only or not 1 <= args.max_fps <= 1000):
+        parser.error("--max-fps requires video mode and a value from 1 to 1000")
     if args.min_audio_bitrate is not None and (not args.audio_only or args.min_audio_bitrate < 1 or (args.max_audio_bitrate is not None and args.min_audio_bitrate > args.max_audio_bitrate)):
         parser.error("--min-audio-bitrate requires audio mode and ordered positive bitrate bounds")
     if args.min_resolution is not None and (args.audio_only or args.min_resolution < 1 or (args.max_resolution is not None and args.min_resolution > args.max_resolution)):
@@ -300,6 +317,8 @@ def main(argv=None):
                 .desc()
             )
             streams = filter_video_streams(streams, args.max_resolution, **({"min_resolution": args.min_resolution} if args.min_resolution is not None else {}))
+            if args.max_fps is not None:
+                streams = filter_video_fps(streams, args.max_fps)
             stream_type = "Video"
 
         if not streams:

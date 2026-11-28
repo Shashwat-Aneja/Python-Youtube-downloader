@@ -51,3 +51,5 @@ When `--max-size-bytes` is supplied, downloads are staged and their actual file 
 Provider/processing error text is rendered through the same terminal control-character escaping used for remote metadata. Printable Unicode is preserved; embedded escape sequences and line-control characters are displayed literally on stderr.
 
 `--audio-only --min-audio-bitrate 128` excludes lower or unknown bitrates. Combine with `--max-audio-bitrate` for an inclusive quality window. Selection applies consistently to listing, JSON metadata and downloads; unordered/nonpositive bounds fail before provider access.
+
+`--max-fps 30` caps video stream frame rate independently of resolution. It preserves the existing stream ordering, excludes unknown/non-integer rates and applies before listing/JSON/download selection. The cap is 1..1000 and is incompatible with audio-only mode. No transcoding occurs.
